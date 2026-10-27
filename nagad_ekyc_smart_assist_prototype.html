@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nagad eKYC Smart Assist Prototype</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        nagad: {
+                            orange: '#F36E21',
+                            red: '#E1251B',
+                            dark: '#222222',
+                            lightBg: '#FFF7F2',
+                            gray: '#F4F5F7'
+                        },
+                        bkash: {
+                            pink: '#E2136E',
+                            dark: '#333333'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Hind Siliguri', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .camera-overlay-frame {
+            border: 2px dashed #F36E21;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+        }
+        .camera-overlay-frame.success {
+            border: 3px solid #10B981;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+        }
+        .camera-overlay-frame.warning {
+            border: 3px solid #F59E0B;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
+        }
+        .face-mask-guide {
+            border: 3px dashed #F36E21;
+            border-radius: 50% 50% 45% 45%;
+        }
+        .face-mask-guide.success {
+            border: 4px solid #10B981;
+        }
+        .pulse-ring {
+            animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.03); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .shutter-btn {
+            box-shadow: 0 0 0 4px rgba(243, 110, 33, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-800 font-sans antialiased min-h-screen flex flex-col items-center justify-start p-2 sm:p-6">
+
+    <!-- Header / Dashboard Bar -->
+    <header class="w-full max-w-5xl mb-6 bg-slate-800 border border-slate-700 text-white rounded-2xl p-4 flex flex-col md:flex-row justify-between items-center shadow-xl gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-nagad-orange rounded-xl flex items-center justify-center font-bold text-xl text-white shadow-lg">
+                ন
+            </div>
+            <div>
+                <h1 class="text-lg font-bold flex items-center gap-2">
+                    Nagad eKYC Smart Assist 
+                    <span class="text-xs bg-nagad-orange/20 text-nagad-orange px-2 py-0.5 rounded-full border border-nagad-orange/30">Interactive Prototype</span>
+                </h1>
+                <p class="text-xs text-slate-400">Solving onboarding drop-off rate by fixing camera rigidity & retry bottlenecks</p>
+            </div>
+        </div>
+
+        <!-- Mode Toggle & Reset -->
+        <div class="flex items-center space-x-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-700">
+            <button id="btnOldFlow" onclick="switchMode('old')" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-triangle-exclamation mr-1 text-amber-500"></i> Old Flawed Flow
+            </button>
+            <button id="btnSmartFlow" onclick="switchMode('smart')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-nagad-orange text-white shadow transition">
+                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> New Smart Assist Flow
+            </button>
+            <button onclick="resetPrototype()" class="px-2 py-1.5 text-xs text-slate-400 hover:text-white" title="Reset Prototype">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+
+        <!-- Left Column: Context & Real-Time Stats -->
+        <div class="md:col-span-5 flex flex-col gap-4 order-2 md:order-1">
+            
+            <!-- Flow Explainer Card -->
+            <div id="flowExplainerCard" class="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-white shadow-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <span id="currentModeBadge" class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-nagad-orange text-white">
+                        Smart Assist Mode
+                    </span>
+                    <span class="text-xs text-slate-400">Step <span id="stepCounterText">1</span> of 4</span>
+                </div>
+                <h2 id="explainerTitle" class="text-lg font-bold text-white mb-2">Smart Assist Active</h2>
+                <p id="explainerDesc" class="text-xs text-slate-300 leading-relaxed mb-4">
+                    Notice how the system handles glare, provides instant fallback buttons, and saves state progressively so failures never force a total reset.
+                </p>
+
+                <!-- Comparison Checklist -->
+                <div class="border-t border-slate-700/80 pt-3 space-y-2 text-xs">
+                    <div id="featFallback" class="flex items-center text-emerald-400">
+                        <i class="fa-solid fa-circle-check w-5"></i>
+                        <span>3-sec Manual Override Shutter Fallback</span>
+                    </div>
+                    <div id="featGuidance" class="flex items-center text-emerald-400">
+                        <i class="fa-solid fa-circle-check w-5"></i>
+                        <span>Real-Time Environmental Glare Guidance</span>
+                    </div>
+                    <div id="featResume" class="flex items-center text-emerald-400">
+                        <i class="fa-solid fa-circle-check w-5"></i>
+                        <span>Progressive Auto-Resume (No Data Loss)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Metrics Box -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-white shadow-lg">
+                <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center justify-between">
+                    <span>Impact Comparison</span>
+                    <span class="text-xs font-normal text-slate-400">eKYC Benchmarks</span>
+                </h3>
+                
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Estimated Completion Time</span>
+                            <span id="metricTime" class="font-bold text-emerald-400">45 Seconds</span>
+                        </div>
+                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div id="metricTimeBar" class="bg-emerald-500 h-full w-[35%] transition-all duration-500"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Drop-Off Rate Risk</span>
+                            <span id="metricDropoff" class="font-bold text-emerald-400">Low (~8%)</span>
+                        </div>
+                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div id="metricDropoffBar" class="bg-emerald-500 h-full w-[15%] transition-all duration-500"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">User Frustration Index</span>
+                            <span id="metricFrustration" class="font-bold text-emerald-400">Very Low</span>
+                        </div>
+                        <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div id="metricFrustrationBar" class="bg-emerald-500 h-full w-[10%] transition-all duration-500"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Developer Log / Event Inspector -->
+            <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 font-mono text-[11px] text-slate-400 shadow-inner h-40 overflow-y-auto">
+                <div class="text-slate-500 border-b border-slate-800 pb-1 mb-2 flex justify-between items-center">
+                    <span><i class="fa-solid fa-terminal mr-1"></i> LOG CONSOLE</span>
+                    <span class="text-[10px] text-emerald-400">● LIVE</span>
+                </div>
+                <div id="consoleLogs" class="space-y-1">
+                    <p class="text-slate-500">> System initialized. Select mode or proceed with registration.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Interactive Mobile Frame -->
+        <div class="md:col-span-7 flex justify-center order-1 md:order-2">
+            <!-- Smartphone Shell -->
+            <div class="w-full max-w-[380px] bg-slate-950 border-[8px] border-slate-800 rounded-[40px] shadow-2xl overflow-hidden relative min-h-[640px] flex flex-col justify-between">
+                
+                <!-- Phone Top Bar / Dynamic Island Notch -->
+                <div class="bg-slate-900 text-white px-6 pt-3 pb-2 flex justify-between items-center z-30 select-none">
+                    <span class="text-xs font-semibold">9:41</span>
+                    <div class="w-16 h-3 bg-slate-950 rounded-full flex justify-center items-center">
+                        <div class="w-2 h-2 bg-slate-800 rounded-full mr-1"></div>
+                    </div>
+                    <div class="flex items-center space-x-1.5 text-xs">
+                        <i class="fa-solid fa-signal"></i>
+                        <i class="fa-solid fa-wifi"></i>
+                        <i class="fa-solid fa-battery-full"></i>
+                    </div>
+                </div>
+
+                <!-- App Header Bar -->
+                <div id="appHeader" class="bg-nagad-orange text-white px-4 py-3 flex items-center justify-between shadow-md z-20 transition-colors duration-300">
+                    <button onclick="previousStep()" id="btnHeaderBack" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-sm transition">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <div class="text-center">
+                        <span id="appHeaderTitle" class="font-bold text-sm block">Nagad Registration</span>
+                        <span id="appHeaderSubtitle" class="text-[10px] text-white/80 block">Self-eKYC Verification</span>
+                    </div>
+                    <div class="w-8"></div>
+                </div>
+
+                <!-- APP SCREEN BODY CONTENT CONTAINER -->
+                <div id="mobileBody" class="flex-1 bg-nagad-lightBg relative overflow-y-auto flex flex-col justify-between">
+                    
+                    <!-- STEP 1: MOBILE NUMBER & START -->
+                    <div id="screenStep1" class="p-5 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="text-center my-4">
+                                <div class="w-16 h-16 bg-nagad-orange/10 text-nagad-orange rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold mb-2">
+                                    <i class="fa-solid fa-id-card"></i>
+                                </div>
+                                <h3 class="font-bold text-slate-800 text-base">Open Nagad Account</h3>
+                                <p class="text-xs text-slate-500 mt-1">Please have your original Smart NID card ready for scanning.</p>
+                            </div>
+
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                <div>
+                                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Mobile Number</label>
+                                    <div class="flex items-center border border-slate-300 rounded-lg p-2.5 bg-slate-50">
+                                        <span class="text-xs font-bold text-slate-600 mr-2 border-r border-slate-300 pr-2">+880</span>
+                                        <input type="text" value="1712 345 678" readonly class="bg-transparent text-xs font-semibold text-slate-800 outline-none w-full">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Account Type</label>
+                                    <select class="w-full border border-slate-300 rounded-lg p-2.5 text-xs bg-white font-medium text-slate-700">
+                                        <option>Regular Customer Account</option>
+                                        <option>Islamic Savings Account</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 mt-6">
+                            <button onclick="goToStep(2)" class="w-full bg-nagad-orange hover:bg-nagad-orange/90 text-white font-semibold py-3 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2">
+                                <span>Proceed to NID Scan</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <p class="text-[10px] text-center text-slate-400">By continuing, you agree to Nagad eKYC terms.</p>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: NID CAMERA SCAN (MAIN FIX MOMENT 1) -->
+                    <div id="screenStep2" class="hidden flex-1 flex flex-col justify-between relative bg-black">
+                        
+                        <!-- Camera Simulation Viewport -->
+                        <div class="relative flex-1 flex items-center justify-center overflow-hidden min-h-[360px]">
+                            <!-- Simulated NID Background Image -->
+                            <div class="absolute inset-0 bg-slate-900 flex items-center justify-center p-4">
+                                <div id="simulatedNID" class="w-[260px] h-[160px] bg-emerald-900/60 border border-emerald-500/40 rounded-xl p-3 flex flex-col justify-between relative transition-all duration-300">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-6 h-6 bg-red-600 rounded-full opacity-80"></div>
+                                        <div class="h-2 w-24 bg-white/40 rounded"></div>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-12 bg-white/30 rounded"></div>
+                                        <div class="space-y-1.5 flex-1">
+                                            <div class="h-2 w-28 bg-white/50 rounded"></div>
+                                            <div class="h-2 w-20 bg-white/30 rounded"></div>
+                                            <div class="h-2 w-16 bg-white/30 rounded"></div>
+                                        </div>
+                                    </div>
+                                    <div class="h-2 w-full bg-white/20 rounded"></div>
+
+                                    <!-- Glare Simulation Effect overlay -->
+                                    <div id="glareOverlay" class="absolute -top-10 -right-10 w-32 h-32 bg-white/30 rounded-full blur-xl transition-opacity duration-300 pointer-events-none opacity-0"></div>
+                                </div>
+                            </div>
+
+                            <!-- Camera Bounding Box Frame -->
+                            <div id="cameraFrame" class="camera-overlay-frame w-[280px] h-[180px] rounded-xl relative z-10 flex flex-col justify-between p-2">
+                                <div class="flex justify-between">
+                                    <div class="w-4 h-4 border-t-2 border-l-2 border-nagad-orange"></div>
+                                    <div class="w-4 h-4 border-t-2 border-r-2 border-nagad-orange"></div>
+                                </div>
+                                <div class="flex justify-between">
+                                    <div class="w-4 h-4 border-b-2 border-l-2 border-nagad-orange"></div>
+                                    <div class="w-4 h-4 border-b-2 border-r-2 border-nagad-orange"></div>
+                                </div>
+                            </div>
+
+                            <!-- Live Feedback Banner (NEW FEATURE) -->
+                            <div id="liveGuidanceBox" class="absolute top-4 left-4 right-4 bg-slate-900/90 border border-slate-700 text-white text-[11px] p-2.5 rounded-xl z-20 flex items-center space-x-2 shadow-lg backdrop-blur">
+                                <i id="guidanceIcon" class="fa-solid fa-spinner fa-spin text-nagad-orange text-sm"></i>
+                                <span id="guidanceText">Align NID card inside the frame...</span>
+                            </div>
+
+                            <!-- Simulated Controls Overlay -->
+                            <div class="absolute bottom-3 left-4 right-4 z-20 flex justify-between items-center">
+                                <button onclick="toggleSimulatedGlare()" class="bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-lg backdrop-blur border border-white/20">
+                                    <i class="fa-solid fa-sun mr-1 text-amber-400"></i> Toggle Glare
+                                </button>
+                                <span id="scanTimer" class="text-[10px] text-white/80 font-mono bg-black/60 px-2 py-0.5 rounded">Auto: 3s</span>
+                            </div>
+                        </div>
+
+                        <!-- Camera Action Bar -->
+                        <div class="p-4 bg-slate-900 text-white flex flex-col items-center gap-3">
+                            <!-- Shutter Fallback Button (Appears after 3 sec in Smart mode, hidden/disabled in Old mode) -->
+                            <div id="shutterFallbackContainer" class="w-full flex flex-col items-center">
+                                <button id="btnManualShutter" onclick="triggerManualCapture()" class="w-full bg-nagad-orange text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition opacity-50 cursor-not-allowed" disabled>
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span id="shutterText">Scanning Auto Frame (Wait 3s)...</span>
+                                </button>
+                                <p id="shutterHint" class="text-[10px] text-slate-400 mt-1">Manual shutter unlocks if auto-detection stalls.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: OCR REVIEW & SELFIE (MAIN FIX MOMENT 2 - FAILURE & RESUME) -->
+                    <div id="screenStep3" class="hidden flex-1 flex flex-col justify-between p-4 bg-nagad-lightBg">
+                        <div class="space-y-3">
+                            <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl text-xs flex items-center gap-2">
+                                <i class="fa-solid fa-circle-check text-emerald-600 text-sm"></i>
+                                <span>NID Scanned Successfully! OCR Data Extracted.</span>
+                            </div>
+
+                            <!-- OCR Card Data -->
+                            <div class="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-sm text-xs">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Extracted Details</span>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <span class="text-[10px] text-slate-500 block">Name</span>
+                                        <span class="font-semibold text-slate-800">Rahim Ahmed</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-slate-500 block">NID Number</span>
+                                        <span class="font-semibold text-slate-800">1992269123847</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Selfie Verification Section -->
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                                <h4 class="font-bold text-xs text-slate-800 mb-1">Face Verification (Liveness Check)</h4>
+                                <p class="text-[11px] text-slate-500 mb-3">Place your face inside the circle and blink eyes twice.</p>
+
+                                <!-- Live Face Camera Simulation Box -->
+                                <div class="w-32 h-32 mx-auto bg-slate-900 rounded-full relative flex items-center justify-center overflow-hidden mb-3 border-2 border-slate-700">
+                                    <i class="fa-solid fa-user text-4xl text-slate-600"></i>
+                                    <div id="faceGuideRing" class="face-mask-guide absolute inset-1"></div>
+                                </div>
+
+                                <div class="flex gap-2 justify-center">
+                                    <button onclick="simulateFaceCheck(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg">
+                                        <i class="fa-solid fa-check mr-1"></i> Pass Selfie
+                                    </button>
+                                    <button onclick="simulateFaceCheck(false)" class="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg">
+                                        <i class="fa-solid fa-xmark mr-1"></i> Fail Selfie
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progressive Save Notice -->
+                        <div id="progressiveSaveNotice" class="text-[10px] text-slate-500 text-center bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded-lg">
+                            <i class="fa-solid fa-floppy-disk text-amber-600 mr-1"></i>
+                            Progress saved! If selfie fails, you won't need to re-scan NID.
+                        </div>
+                    </div>
+
+                    <!-- STEP 4: SUCCESS / COMPLETE -->
+                    <div id="screenStep4" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center bg-white">
+                        <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mb-4 shadow-inner">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <h3 class="font-bold text-lg text-slate-800">Registration Complete!</h3>
+                        <p class="text-xs text-slate-500 mt-1 max-w-[240px]">
+                            Your Nagad account is active. You can now set your 4-digit PIN and start making transfers.
+                        </p>
+
+                        <div class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 my-5 text-left text-xs space-y-1">
+                            <div class="flex justify-between text-slate-600">
+                                <span>Verification Time:</span>
+                                <span id="finalTimeText" class="font-semibold text-slate-800">18 seconds</span>
+                            </div>
+                            <div class="flex justify-between text-slate-600">
+                                <span>Status:</span>
+                                <span class="font-semibold text-emerald-600">Instant Approved</span>
+                            </div>
+                        </div>
+
+                        <button onclick="resetPrototype()" class="w-full bg-nagad-orange text-white py-3 rounded-xl text-xs font-bold shadow-md">
+                            Test Prototype Again
+                        </button>
+                    </div>
+
+                    <!-- FAILED STATE DIALOG OVERLAY (OLD FLOW TRAP) -->
+                    <div id="oldFlowFailureModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm z-50 p-6 flex items-center justify-center">
+                        <div class="bg-white rounded-2xl p-5 text-center shadow-2xl space-y-3 max-w-[280px]">
+                            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full mx-auto flex items-center justify-center text-xl">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </div>
+                            <h4 class="font-bold text-slate-800 text-sm">Verification Failed</h4>
+                            <p class="text-xs text-slate-500 leading-relaxed">
+                                Eye-blink detection failed or lighting was insufficient. (Old Flow Trap)
+                            </p>
+                            <div class="bg-red-50 border border-red-200 text-red-700 text-[10px] p-2 rounded-lg font-semibold">
+                                System restarting onboarding from Step 1. All entered data lost!
+                            </div>
+                            <button onclick="handleOldFlowRestart()" class="w-full bg-red-600 text-white font-bold py-2 rounded-xl text-xs">
+                                Restart From Step 1
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Phone Bottom Home Bar -->
+                <div class="bg-slate-900 py-2 flex justify-center z-30 select-none">
+                    <div class="w-32 h-1 bg-slate-700 rounded-full"></div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Interactive Script Logic -->
+    <script>
+        // State variables
+        let currentMode = 'smart'; // 'smart' or 'old'
+        let currentStep = 1;
+        let scanTimerSeconds = 3;
+        let timerInterval = null;
+        let isGlareActive = false;
+        let nidScanned = false;
+
+        // Initialize prototype on page load
+        window.onload = function() {
+            logConsole("Prototype loaded. Default mode: SMART ASSIST FLOW.");
+            updateUIState();
+        };
+
+        function switchMode(mode) {
+            currentMode = mode;
+            logConsole(`Switched mode to: ${mode.toUpperCase()}`);
+            
+            // Toggle header button active styles
+            const btnOld = document.getElementById('btnOldFlow');
+            const btnSmart = document.getElementById('btnSmartFlow');
+
+            if (mode === 'smart') {
+                btnSmart.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-nagad-orange text-white shadow transition";
+                btnOld.className = "px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition";
+            } else {
+                btnOld.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white shadow transition";
+                btnSmart.className = "px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition";
+            }
+
+            // Update explainer texts & metrics
+            updateExplainerContent();
+            
+            // Restart step 1
+            goToStep(1);
+        }
+
+        function updateExplainerContent() {
+            const badge = document.getElementById('currentModeBadge');
+            const title = document.getElementById('explainerTitle');
+            const desc = document.getElementById('explainerDesc');
+
+            const featFallback = document.getElementById('featFallback');
+            const featGuidance = document.getElementById('featGuidance');
+            const featResume = document.getElementById('featResume');
+
+            const timeText = document.getElementById('metricTime');
+            const dropoffText = document.getElementById('metricDropoff');
+            const frustText = document.getElementById('metricFrustration');
+
+            const timeBar = document.getElementById('metricTimeBar');
+            const dropoffBar = document.getElementById('metricDropoffBar');
+            const frustBar = document.getElementById('metricFrustrationBar');
+
+            if (currentMode === 'smart') {
+                badge.className = "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-nagad-orange text-white";
+                badge.innerText = "Smart Assist Mode";
+                title.innerText = "New Smart Assist Active";
+                desc.innerText = "Real-time camera guidance, 3-second fallback shutter, and non-destructive session memory protect users from onboarding loops.";
+
+                featFallback.className = "flex items-center text-emerald-400";
+                featGuidance.className = "flex items-center text-emerald-400";
+                featResume.className = "flex items-center text-emerald-400";
+
+                timeText.innerText = "35-45 Seconds";
+                timeText.className = "font-bold text-emerald-400";
+                timeBar.className = "bg-emerald-500 h-full w-[30%] transition-all duration-500";
+
+                dropoffText.innerText = "Low (~8%)";
+                dropoffText.className = "font-bold text-emerald-400";
+                dropoffBar.className = "bg-emerald-500 h-full w-[15%] transition-all duration-500";
+
+                frustText.innerText = "Very Low";
+                frustText.className = "font-bold text-emerald-400";
+                frustBar.className = "bg-emerald-500 h-full w-[10%] transition-all duration-500";
+
+                document.getElementById('progressiveSaveNotice').style.display = 'block';
+            } else {
+                badge.className = "text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-red-600 text-white";
+                badge.innerText = "Flawed Old Flow";
+                title.innerText = "Old Rigid Flow Active";
+                desc.innerText = "Strict shutter locks without override options, zero glare alerts, and destructive failure loops that restart from Step 1.";
+
+                featFallback.className = "flex items-center text-slate-500 line-through";
+                featGuidance.className = "flex items-center text-slate-500 line-through";
+                featResume.className = "flex items-center text-slate-500 line-through";
+
+                timeText.innerText = "120+ Seconds (Frequent Fail)";
+                timeText.className = "font-bold text-red-400";
+                timeBar.className = "bg-red-500 h-full w-[85%] transition-all duration-500";
+
+                dropoffText.innerText = "High (~35%)";
+                dropoffText.className = "font-bold text-red-400";
+                dropoffBar.className = "bg-red-500 h-full w-[70%] transition-all duration-500";
+
+                frustText.innerText = "Extreme";
+                frustText.className = "font-bold text-red-400";
+                frustBar.className = "bg-red-500 h-full w-[90%] transition-all duration-500";
+
+                document.getElementById('progressiveSaveNotice').style.display = 'none';
+            }
+        }
+
+        function goToStep(step) {
+            currentStep = step;
+            document.getElementById('stepCounterText').innerText = step;
+
+            // Hide all steps
+            document.getElementById('screenStep1').classList.add('hidden');
+            document.getElementById('screenStep2').classList.add('hidden');
+            document.getElementById('screenStep3').classList.add('hidden');
+            document.getElementById('screenStep4').classList.add('hidden');
+            document.getElementById('oldFlowFailureModal').classList.add('hidden');
+
+            // Show active step
+            document.getElementById(`screenStep${step}`).classList.remove('hidden');
+
+            logConsole(`Navigated to Step ${step}`);
+
+            // Specific step triggers
+            if (step === 2) {
+                startCameraScanSimulation();
+            } else {
+                clearInterval(timerInterval);
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                goToStep(currentStep - 1);
+            }
+        }
+
+        function startCameraScanSimulation() {
+            scanTimerSeconds = 3;
+            const guidanceText = document.getElementById('guidanceText');
+            const guidanceIcon = document.getElementById('guidanceIcon');
+            const btnShutter = document.getElementById('btnManualShutter');
+            const shutterText = document.getElementById('shutterText');
+            const timerBadge = document.getElementById('scanTimer');
+
+            guidanceText.innerText = isGlareActive ? "Glare detected! Move camera slightly..." : "Aligning NID inside frame...";
+            guidanceIcon.className = "fa-solid fa-spinner fa-spin text-nagad-orange text-sm";
+
+            btnShutter.disabled = true;
+            btnShutter.className = "w-full bg-slate-700 text-slate-400 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-not-allowed opacity-60";
+
+            if (currentMode === 'smart') {
+                shutterText.innerText = `Auto-detecting... (${scanTimerSeconds}s fallback)`;
+                
+                clearInterval(timerInterval);
+                timerInterval = setInterval(() => {
+                    scanTimerSeconds--;
+                    if (scanTimerSeconds > 0) {
+                        shutterText.innerText = `Auto-detecting... (${scanTimerSeconds}s fallback)`;
+                        timerBadge.innerText = `Auto: ${scanTimerSeconds}s`;
+                    } else {
+                        clearInterval(timerInterval);
+                        // Unlock Manual Shutter Fallback!
+                        btnShutter.disabled = false;
+                        btnShutter.className = "w-full bg-nagad-orange hover:bg-nagad-orange/90 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-lg transition animate-pulse";
+                        shutterText.innerText = "Manual Capture (Fallback Active)";
+                        guidanceText.innerText = "Auto-frame timeout. Tap manual capture below!";
+                        guidanceIcon.className = "fa-solid fa-hand text-amber-400 text-sm";
+                        logConsole("Smart Assist: 3-second timer expired. Manual shutter override unlocked!");
+                    }
+                }, 1000);
+            } else {
+                // Old Mode: No manual fallback ever unlocked
+                shutterText.innerText = "Auto-Scan Only (No Fallback)";
+                timerBadge.innerText = "Locked";
+                logConsole("Old Flow: Locked auto-frame active. No manual fallback option available.");
+            }
+        }
+
+        function toggleSimulatedGlare() {
+            isGlareActive = !isGlareActive;
+            const glareOverlay = document.getElementById('glareOverlay');
+            const cameraFrame = document.getElementById('cameraFrame');
+            const guidanceText = document.getElementById('guidanceText');
+            const guidanceIcon = document.getElementById('guidanceIcon');
+
+            if (isGlareActive) {
+                glareOverlay.style.opacity = '1';
+                cameraFrame.className = 'camera-overlay-frame warning w-[280px] h-[180px] rounded-xl relative z-10 flex flex-col justify-between p-2';
+                
+                if (currentMode === 'smart') {
+                    guidanceText.innerText = "Glare detected! Tilt phone away from overhead light.";
+                    guidanceIcon.className = "fa-solid fa-sun text-amber-400 text-sm";
+                    logConsole("Smart Assist Warning: Environmental glare detected. Displayed actionable tip.");
+                } else {
+                    guidanceText.innerText = "Scanning... (Holding)";
+                    logConsole("Old Flow: Glare present, camera stuck in retry loop with no user guidance.");
+                }
+            } else {
+                glareOverlay.style.opacity = '0';
+                cameraFrame.className = 'camera-overlay-frame w-[280px] h-[180px] rounded-xl relative z-10 flex flex-col justify-between p-2';
+                guidanceText.innerText = "Align NID card inside the frame...";
+                guidanceIcon.className = "fa-solid fa-spinner fa-spin text-nagad-orange text-sm";
+            }
+        }
+
+        function triggerManualCapture() {
+            if (currentMode === 'old') return;
+            logConsole("User clicked Manual Shutter Override button.");
+            
+            const cameraFrame = document.getElementById('cameraFrame');
+            cameraFrame.className = 'camera-overlay-frame success w-[280px] h-[180px] rounded-xl relative z-10 flex flex-col justify-between p-2';
+            
+            setTimeout(() => {
+                nidScanned = true;
+                goToStep(3);
+            }, 600);
+        }
+
+        function simulateFaceCheck(isSuccess) {
+            const faceRing = document.getElementById('faceGuideRing');
+
+            if (isSuccess) {
+                faceRing.className = "face-mask-guide success absolute inset-1";
+                logConsole("Selfie check PASSED.");
+                setTimeout(() => {
+                    goToStep(4);
+                }, 700);
+            } else {
+                logConsole("Selfie check FAILED.");
+                if (currentMode === 'smart') {
+                    logConsole("Smart Assist: Retaining scanned NID data. Prompting re-take for selfie ONLY.");
+                    alert("Selfie verification failed. Smart Assist saved your NID data! Simply retry your selfie.");
+                } else {
+                    logConsole("Old Flow: Showing generic error modal and forcing total restart from Step 1!");
+                    document.getElementById('oldFlowFailureModal').classList.remove('hidden');
+                }
+            }
+        }
+
+        function handleOldFlowRestart() {
+            logConsole("Old Flow: Restarting session completely. Data cleared.");
+            goToStep(1);
+        }
+
+        function resetPrototype() {
+            currentStep = 1;
+            isGlareActive = false;
+            nidScanned = false;
+            goToStep(1);
+            logConsole("Prototype reset to initial state.");
+        }
+
+        function logConsole(msg) {
+            const container = document.getElementById('consoleLogs');
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-slate-600">[${time}]</span> ${msg}`;
+            container.appendChild(p);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateUIState() {
+            updateExplainerContent();
+        }
+    </script>
+</body>
+</html>
